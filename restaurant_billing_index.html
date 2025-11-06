@@ -1,0 +1,281 @@
+<!--
+Restaurant Billing Web App
+Single-file: index.html
+Features:
+- Responsive UI (HTML/CSS/JS)
+- Predefined menu with categories
+- Add/edit quantities, remove items
+- Calculates subtotal, tax, discount, service charge, total
+- Save bills to localStorage, export JSON
+- Printable receipt
+- Ready to publish on GitHub Pages (just push this file as index.html to repo root or gh-pages branch)
+
+How to publish on GitHub Pages:
+1. Create a new repository on GitHub.
+2. Add this file as `index.html` in the repository root.
+3. Commit and push.
+4. In repository Settings -> Pages -> Source: choose branch `main` (or `gh-pages`) and folder `/ (root)`.
+5. Your site will be available at https://<your-username>.github.io/<repo-name>/
+
+You can edit the `MENU` array in the script section to add/remove items.
+-->
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Restaurant Billing App</title>
+  <style>
+    :root{
+      --bg:#0f1724; --card:#0b1220; --muted:#98a0b3; --accent:#f59e0b; --glass: rgba(255,255,255,0.03);
+      --success:#10b981; --danger:#ef4444; --radius:12px;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; background:linear-gradient(180deg,#071026 0%, #071a2a 100%); color:#e6eef8; padding:28px;}
+    .wrap{max-width:1100px; margin:0 auto; display:grid; grid-template-columns: 1fr 420px; gap:20px;}
+    header{grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; gap:12px}
+    h1{font-size:20px; margin:0}
+    .sub{color:var(--muted); font-size:13px}
+
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:18px; border-radius:var(--radius); box-shadow: 0 6px 18px rgba(3,7,18,0.6);}
+
+    /* Menu column */
+    .menu{display:grid; grid-template-columns:repeat(2,1fr); gap:12px}
+    .menu-item{background:var(--glass); padding:12px; border-radius:10px; display:flex; flex-direction:column; gap:8px}
+    .menu-item .title{font-weight:600}
+    .menu-item .meta{display:flex; justify-content:space-between; align-items:center; gap:8px}
+    .menu-item button{background:var(--accent); color:#051124; border:none; padding:8px 10px; border-radius:8px; cursor:pointer}
+
+    /* Right column */
+    .right{display:flex; flex-direction:column; gap:12px}
+    .cart-table{width:100%; border-collapse:collapse}
+    .cart-table th, .cart-table td{padding:8px 6px; text-align:left}
+    .cart-table th{color:var(--muted); font-size:13px}
+    .qty{display:flex; gap:6px; align-items:center}
+    .btn{background:var(--accent); color:#051124; border:none; padding:8px 12px; border-radius:10px; cursor:pointer}
+    .btn.ghost{background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--muted)}
+
+    .totals{display:flex; flex-direction:column; gap:6px}
+    .totals .row{display:flex; justify-content:space-between; color:var(--muted)}
+    .total-amount{font-weight:700; font-size:18px}
+
+    .receipt{white-space:pre-wrap; background:#071227; padding:12px; border-radius:8px; font-family:monospace; font-size:13px}
+
+    footer{grid-column:1/-1; margin-top:8px; color:var(--muted); font-size:13px}
+
+    @media (max-width:980px){.wrap{grid-template-columns:1fr; padding:12px} .menu{grid-template-columns:repeat(1,1fr)} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Restaurant Billing App</h1>
+        <div class="sub">Fast, printable, GitHub Pages-ready billing</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="saveBtn" class="btn">Save Bill</button>
+        <button id="exportBtn" class="btn ghost">Export JSON</button>
+        <button id="printBtn" class="btn">Print Receipt</button>
+      </div>
+    </header>
+
+    <section class="card">
+      <h3 style="margin:0 0 10px 0">Menu</h3>
+      <div style="display:flex;gap:10px;margin-bottom:10px">
+        <input id="search" placeholder="Search menu..." style="flex:1;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit">
+        <select id="categoryFilter" style="padding:8px;border-radius:10px;background:transparent;color:inherit">
+          <option value="all">All categories</option>
+        </select>
+      </div>
+      <div class="menu" id="menuGrid"></div>
+    </section>
+
+    <aside class="right">
+      <div class="card">
+        <h3 style="margin:0 0 10px 0">Cart</h3>
+        <table class="cart-table" id="cartTable">
+          <thead>
+            <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+          </thead>
+          <tbody id="cartBody"></tbody>
+        </table>
+
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <input id="discount" type="number" placeholder="Discount %" style="flex:1;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:inherit">
+          <input id="tax" type="number" placeholder="Tax %" value="5" style="width:120px;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:inherit">
+        </div>
+
+        <div class="totals" style="margin-top:12px">
+          <div class="row"><div>Subtotal</div><div id="subtotal">₹0.00</div></div>
+          <div class="row"><div>Discount</div><div id="discountAmount">-₹0.00</div></div>
+          <div class="row"><div>Tax</div><div id="taxAmount">₹0.00</div></div>
+          <div class="row total-amount"><div>Total</div><div id="grandTotal">₹0.00</div></div>
+        </div>
+
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button id="clearBtn" class="btn ghost">Clear</button>
+          <button id="newBtn" class="btn">New Bill</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin:0 0 8px 0">Receipt Preview</h3>
+        <div id="receipt" class="receipt">No items yet.</div>
+      </div>
+    </aside>
+
+    <footer>Tip: edit the MENU array in the script to add your dishes. Then push to GitHub and enable Pages to host.</footer>
+  </div>
+
+  <script>
+    // Simple menu data - edit or replace with your own
+    const MENU = [
+      {id:'dosa', name:'Masala Dosa', price:80, category:'South'},
+      {id:'idli', name:'Idli (2 pcs)', price:40, category:'South'},
+      {id:'vada', name:'Medu Vada', price:45, category:'South'},
+      {id:'paneer', name:'Paneer Butter Masala', price:160, category:'North'},
+      {id:'naan', name:'Butter Naan', price:35, category:'North'},
+      {id:'chicken', name:'Chicken Biryani', price:180, category:'Biryani'},
+      {id:'veg_biry', name:'Veg Biryani', price:140, category:'Biryani'},
+      {id:'cold_coffee', name:'Cold Coffee', price:70, category:'Drinks'},
+      {id:'masala_tea', name:'Masala Chai', price:25, category:'Drinks'},
+      {id:'gulab', name:'Gulab Jamun (2 pcs)', price:50, category:'Dessert'},
+    ];
+
+    // App state
+    let cart = {}; // id -> {item, qty}
+
+    // Elements
+    const menuGrid = document.getElementById('menuGrid');
+    const cartBody = document.getElementById('cartBody');
+    const subtotalEl = document.getElementById('subtotal');
+    const taxEl = document.getElementById('tax');
+    const taxAmountEl = document.getElementById('taxAmount');
+    const discountEl = document.getElementById('discount');
+    const discountAmountEl = document.getElementById('discountAmount');
+    const grandTotalEl = document.getElementById('grandTotal');
+    const receiptEl = document.getElementById('receipt');
+    const searchInput = document.getElementById('search');
+    const categoryFilter = document.getElementById('categoryFilter');
+
+    // Populate categories
+    const categories = ['all', ...Array.from(new Set(MENU.map(m=>m.category)))];
+    categories.forEach(c=>{
+      const opt = document.createElement('option'); opt.value=c; opt.textContent = c.charAt(0).toUpperCase()+c.slice(1);
+      categoryFilter.appendChild(opt);
+    });
+
+    function renderMenu() {
+      menuGrid.innerHTML = '';
+      const q = searchInput.value.trim().toLowerCase();
+      const cat = categoryFilter.value;
+      MENU.filter(m=> (cat==='all'||m.category===cat) && (m.name.toLowerCase().includes(q)||m.category.toLowerCase().includes(q))).forEach(item=>{
+        const div = document.createElement('div'); div.className='menu-item';
+        div.innerHTML = `<div class="title">${item.name}</div><div class="meta"><div>₹${item.price.toFixed(2)}</div><div><button data-id="${item.id}">Add</button></div></div>`;
+        menuGrid.appendChild(div);
+      });
+      // attach handlers
+      menuGrid.querySelectorAll('button').forEach(b=>b.addEventListener('click', e=>{
+        const id = e.currentTarget.dataset.id; addToCart(id);
+      }));
+    }
+
+    function addToCart(id, qty=1){
+      const item = MENU.find(m=>m.id===id); if(!item) return;
+      if(cart[id]) cart[id].qty += qty; else cart[id]={item:structuredClone(item), qty};
+      saveState(); renderCart();
+    }
+
+    function renderCart(){
+      cartBody.innerHTML = '';
+      const rows = Object.values(cart);
+      if(rows.length===0){ cartBody.innerHTML = `<tr><td colspan="4" style="color:var(--muted)">Cart is empty</td></tr>`; updateTotals(); return; }
+      rows.forEach(r=>{
+        const tr = document.createElement('tr');
+        const total = r.item.price * r.qty;
+        tr.innerHTML = `<td>${r.item.name}</td>
+                        <td><div class="qty"><button class="qty-dec" data-id="${r.item.id}">-</button><div style="min-width:28px;text-align:center">${r.qty}</div><button class="qty-inc" data-id="${r.item.id}">+</button></div></td>
+                        <td>₹${r.item.price.toFixed(2)}</td>
+                        <td>₹${total.toFixed(2)} <button style="margin-left:8px" class="btn ghost remove" data-id="${r.item.id}">Remove</button></td>`;
+        cartBody.appendChild(tr);
+      });
+      // attach events
+      cartBody.querySelectorAll('.qty-inc').forEach(b=>b.addEventListener('click', e=>{ const id=e.currentTarget.dataset.id; cart[id].qty++; saveState(); renderCart(); }));
+      cartBody.querySelectorAll('.qty-dec').forEach(b=>b.addEventListener('click', e=>{ const id=e.currentTarget.dataset.id; cart[id].qty--; if(cart[id].qty<=0) delete cart[id]; saveState(); renderCart(); }));
+      cartBody.querySelectorAll('.remove').forEach(b=>b.addEventListener('click', e=>{ const id=e.currentTarget.dataset.id; delete cart[id]; saveState(); renderCart(); }));
+
+      updateTotals();
+    }
+
+    function updateTotals(){
+      const rows = Object.values(cart);
+      const subtotal = rows.reduce((s,r)=>s + r.item.price * r.qty, 0);
+      const discountPercent = parseFloat(discountEl.value) || 0;
+      const discountAmt = subtotal * (discountPercent/100);
+      const taxPercent = parseFloat(taxEl.value) || 0;
+      const taxAmt = (subtotal - discountAmt) * (taxPercent/100);
+      const grand = subtotal - discountAmt + taxAmt;
+      subtotalEl.textContent = `₹${subtotal.toFixed(2)}`;
+      discountAmountEl.textContent = `-₹${discountAmt.toFixed(2)}`;
+      taxAmountEl.textContent = `₹${taxAmt.toFixed(2)}`;
+      grandTotalEl.textContent = `₹${grand.toFixed(2)}`;
+      renderReceipt({subtotal, discountAmt, taxAmt, grand});
+    }
+
+    function renderReceipt({subtotal=0, discountAmt=0, taxAmt=0, grand=0}={}){
+      const date = new Date();
+      let s = '';
+      s += `My Restaurant\n`;
+      s += `Date: ${date.toLocaleString()}\n`;
+      s += `--------------------------------\n`;
+      Object.values(cart).forEach(r=>{
+        s += `${r.item.name.padEnd(22)} x${String(r.qty).padEnd(3)} ₹${(r.item.price*r.qty).toFixed(2)}\n`;
+      });
+      s += `--------------------------------\n`;
+      s += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
+      s += `Discount: -₹${discountAmt.toFixed(2)}\n`;
+      s += `Tax: ₹${taxAmt.toFixed(2)}\n`;
+      s += `TOTAL: ₹${grand.toFixed(2)}\n`;
+      s += `\nThank you! Visit again.`;
+      receiptEl.textContent = s;
+    }
+
+    // Save/load local state
+    function saveState(){
+      const store = {cart, tax:taxEl.value, discount:discountEl.value};
+      localStorage.setItem('rbill_state', JSON.stringify(store));
+    }
+    function loadState(){
+      try{ const store = JSON.parse(localStorage.getItem('rbill_state')||'null'); if(store){ cart = store.cart || {}; taxEl.value = store.tax || taxEl.value; discountEl.value = store.discount || discountEl.value; } }catch(e){console.warn(e)}
+    }
+
+    // Buttons
+    document.getElementById('clearBtn').addEventListener('click', ()=>{ cart={}; saveState(); renderCart(); });
+    document.getElementById('newBtn').addEventListener('click', ()=>{ if(confirm('Start a new bill? This will clear the cart.')){ cart={}; saveState(); renderCart(); } });
+    document.getElementById('printBtn').addEventListener('click', ()=>{ window.print(); });
+    document.getElementById('saveBtn').addEventListener('click', ()=>{ const bills = JSON.parse(localStorage.getItem('rbill_history')||'[]'); bills.push({id:Date.now(), date:new Date().toISOString(), cart, totals:{subtotal:parseFloat(subtotalEl.textContent.replace(/[₹,]/g,'')), total:parseFloat(grandTotalEl.textContent.replace(/[₹,]/g,''))}}); localStorage.setItem('rbill_history', JSON.stringify(bills)); alert('Bill saved to local history'); });
+    document.getElementById('exportBtn').addEventListener('click', ()=>{
+      const payload = {date:new Date().toISOString(), cart, tax:taxEl.value, discount:discountEl.value};
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `bill_${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
+    });
+
+    // Search + filter
+    searchInput.addEventListener('input', renderMenu);
+    categoryFilter.addEventListener('change', renderMenu);
+
+    // react to tax/discount
+    taxEl.addEventListener('input', updateTotals);
+    discountEl.addEventListener('input', updateTotals);
+
+    // initial load
+    loadState(); renderMenu(); renderCart();
+
+    // Utility for deep clone in older browsers
+    function structuredClone(obj){ return JSON.parse(JSON.stringify(obj)); }
+  </script>
+</body>
+</html>
