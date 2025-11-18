@@ -1,281 +1,420 @@
-<!--
-Restaurant Billing Web App
-Single-file: index.html
-Features:
-- Responsive UI (HTML/CSS/JS)
-- Predefined menu with categories
-- Add/edit quantities, remove items
-- Calculates subtotal, tax, discount, service charge, total
-- Save bills to localStorage, export JSON
-- Printable receipt
-- Ready to publish on GitHub Pages (just push this file as index.html to repo root or gh-pages branch)
-
-How to publish on GitHub Pages:
-1. Create a new repository on GitHub.
-2. Add this file as `index.html` in the repository root.
-3. Commit and push.
-4. In repository Settings -> Pages -> Source: choose branch `main` (or `gh-pages`) and folder `/ (root)`.
-5. Your site will be available at https://<your-username>.github.io/<repo-name>/
-
-You can edit the `MENU` array in the script section to add/remove items.
--->
-
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Restaurant Billing App</title>
-  <style>
-    :root{
-      --bg:#0f1724; --card:#0b1220; --muted:#98a0b3; --accent:#f59e0b; --glass: rgba(255,255,255,0.03);
-      --success:#10b981; --danger:#ef4444; --radius:12px;
-    }
-    *{box-sizing:border-box}
-    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial; margin:0; background:linear-gradient(180deg,#071026 0%, #071a2a 100%); color:#e6eef8; padding:28px;}
-    .wrap{max-width:1100px; margin:0 auto; display:grid; grid-template-columns: 1fr 420px; gap:20px;}
-    header{grid-column:1/-1; display:flex; justify-content:space-between; align-items:center; gap:12px}
-    h1{font-size:20px; margin:0}
-    .sub{color:var(--muted); font-size:13px}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Restaurant Billing</title>
+<style>
+/* =========================
+   Core layout & typography
+   (Kept your original visual style)
+   ========================= */
+*{margin:0;padding:0;box-sizing:border-box;font-family:Poppins,sans-serif;}
+body{display:flex;flex-direction:column;height:100vh;background:radial-gradient(circle,#0f2027,#000);color:#fff;overflow:hidden;}
+header{padding:15px;background:rgba(25,25,25,0.95);color:#00aaff;font-size:22px;font-weight:bold;display:flex;justify-content:space-between;align-items:center;box-shadow:0 0 20px rgba(0,150,255,0.3);}
+button.logout{background:#ff3333;padding:6px 12px;border:none;border-radius:8px;color:white;cursor:pointer;}
+.container{display:flex;flex:1;height:calc(100vh - 60px);}
+.sidebar{width:25%;background:rgba(34,34,34,0.9);padding:20px;overflow-y:auto;border-right:2px solid #1e90ff;}
+.cart{width:45%;background:rgba(20,20,20,0.9);padding:20px;overflow-y:auto;border-left:2px solid #1e90ff;border-right:2px solid #1e90ff;}
+.receipt{width:30%;background:rgba(25,25,25,0.95);padding:25px;overflow-y:auto;border-left:2px solid #1e90ff;}
+h3{color:#1e90ff;margin-bottom:10px;}
+.category-block{margin-bottom:14px;}
+.item{background:#222;padding:8px 10px;margin-bottom:8px;border-radius:8px;cursor:pointer;user-select:none;}
+.item:hover{background:#1e90ff;color:white;transform:scale(1.03);}
+/* table */
+table{width:100%;border-collapse:collapse;}
+th,td{border-bottom:1px solid #333;padding:8px;text-align:center;}
+.total{margin-top:15px;text-align:right;font-size:18px;}
+.generate{width:100%;margin-top:10px;padding:10px;border:none;border-radius:8px;background:linear-gradient(90deg,#0078ff,#00aaff);color:white;font-size:16px;cursor:pointer;}
+.generate:hover{box-shadow:0 0 20px #1e90ff;transform:scale(1.02);}
+/* qty buttons */
+.qty-btn{padding:4px 8px;margin:0 4px;border-radius:4px;background:#222;color:#fff;border:none;cursor:pointer;}
+.qty-btn:disabled{opacity:0.5;cursor:not-allowed;}
+.receipt-box{background:#111;border:1px solid rgba(0,150,255,0.3);border-radius:10px;padding:15px;color:#ccc;font-size:14px;line-height:1.6;height:70%;overflow-y:auto;}
 
-    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); padding:18px; border-radius:var(--radius); box-shadow: 0 6px 18px rgba(3,7,18,0.6);}
+/* inputs in sidebar */
+.sidebar input[type="text"], .sidebar input[type="number"], .sidebar select {
+  width:100%; padding:8px; border-radius:6px; border:none; margin-bottom:8px;
+  background:#1a1a1a; color:#fff; outline:none;
+}
 
-    /* Menu column */
-    .menu{display:grid; grid-template-columns:repeat(2,1fr); gap:12px}
-    .menu-item{background:var(--glass); padding:12px; border-radius:10px; display:flex; flex-direction:column; gap:8px}
-    .menu-item .title{font-weight:600}
-    .menu-item .meta{display:flex; justify-content:space-between; align-items:center; gap:8px}
-    .menu-item button{background:var(--accent); color:#051124; border:none; padding:8px 10px; border-radius:8px; cursor:pointer}
+/* small notes */
+.small-note{font-size:12px;color:#bbb;margin-top:6px;}
 
-    /* Right column */
-    .right{display:flex; flex-direction:column; gap:12px}
-    .cart-table{width:100%; border-collapse:collapse}
-    .cart-table th, .cart-table td{padding:8px 6px; text-align:left}
-    .cart-table th{color:var(--muted); font-size:13px}
-    .qty{display:flex; gap:6px; align-items:center}
-    .btn{background:var(--accent); color:#051124; border:none; padding:8px 12px; border-radius:10px; cursor:pointer}
-    .btn.ghost{background:transparent; border:1px solid rgba(255,255,255,0.06); color:var(--muted)}
+/* ====== Shake animation for + buttons ====== */
+@keyframes shakeX {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  50% { transform: translateX(6px); }
+  75% { transform: translateX(-6px); }
+  100% { transform: translateX(0); }
+}
+.qty-btn.shake {
+  animation: shakeX 0.35s ease;
+  background: #ff4444 !important;
+  color: #fff !important;
+  border-color: rgba(255,0,0,0.2);
+}
 
-    .totals{display:flex; flex-direction:column; gap:6px}
-    .totals .row{display:flex; justify-content:space-between; color:var(--muted)}
-    .total-amount{font-weight:700; font-size:18px}
-
-    .receipt{white-space:pre-wrap; background:#071227; padding:12px; border-radius:8px; font-family:monospace; font-size:13px}
-
-    footer{grid-column:1/-1; margin-top:8px; color:var(--muted); font-size:13px}
-
-    @media (max-width:980px){.wrap{grid-template-columns:1fr; padding:12px} .menu{grid-template-columns:repeat(1,1fr)} }
-  </style>
+/* subtle responsive */
+@media (max-width:900px){
+  .container{flex-direction:column;height:auto;}
+  .sidebar,.cart,.receipt{width:100%;}
+  body{height:auto;}
+}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>Restaurant Billing App</h1>
-        <div class="sub">Fast, printable, GitHub Pages-ready billing</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button id="saveBtn" class="btn">Save Bill</button>
-        <button id="exportBtn" class="btn ghost">Export JSON</button>
-        <button id="printBtn" class="btn">Print Receipt</button>
-      </div>
-    </header>
+<header>
+  🍴 Restaurant Billing System
+  <a href="/logout"><button class="logout">Logout</button></a>
+</header>
 
-    <section class="card">
-      <h3 style="margin:0 0 10px 0">Menu</h3>
-      <div style="display:flex;gap:10px;margin-bottom:10px">
-        <input id="search" placeholder="Search menu..." style="flex:1;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:transparent;color:inherit">
-        <select id="categoryFilter" style="padding:8px;border-radius:10px;background:transparent;color:inherit">
-          <option value="all">All categories</option>
-        </select>
-      </div>
-      <div class="menu" id="menuGrid"></div>
-    </section>
+<div class="container">
 
-    <aside class="right">
-      <div class="card">
-        <h3 style="margin:0 0 10px 0">Cart</h3>
-        <table class="cart-table" id="cartTable">
-          <thead>
-            <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
-          </thead>
-          <tbody id="cartBody"></tbody>
-        </table>
+  <!-- ---------------- Sidebar (menu + add item) ---------------- -->
+  <div class="sidebar">
+    <!-- STARTERS block -->
+    <div class="category-block" id="cat-starters">
+      <h3>🥗 Starters</h3>
+      <div class="item" data-name="Paneer Tikka" data-price="180">Paneer Tikka - ₹180</div>
+      <div class="item" data-name="Veg Soup" data-price="120">Veg Soup - ₹120</div>
+      <div class="item" data-name="Spring Roll" data-price="100">Spring Roll - ₹100</div>
+    </div>
 
-        <div style="display:flex;gap:8px;margin-top:10px">
-          <input id="discount" type="number" placeholder="Discount %" style="flex:1;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:inherit">
-          <input id="tax" type="number" placeholder="Tax %" value="5" style="width:120px;padding:8px;border-radius:8px;background:transparent;border:1px solid rgba(255,255,255,0.03);color:inherit">
-        </div>
+    <!-- MAIN COURSE block -->
+    <div class="category-block" id="cat-main">
+      <h3>🍛 Main Course</h3>
+      <div class="item" data-name="Butter Chicken" data-price="260">Butter Chicken - ₹260</div>
+      <div class="item" data-name="Veg Biryani" data-price="200">Veg Biryani - ₹200</div>
+      <div class="item" data-name="Paneer Butter Masala" data-price="220">Paneer Butter Masala - ₹220</div>
+    </div>
 
-        <div class="totals" style="margin-top:12px">
-          <div class="row"><div>Subtotal</div><div id="subtotal">₹0.00</div></div>
-          <div class="row"><div>Discount</div><div id="discountAmount">-₹0.00</div></div>
-          <div class="row"><div>Tax</div><div id="taxAmount">₹0.00</div></div>
-          <div class="row total-amount"><div>Total</div><div id="grandTotal">₹0.00</div></div>
-        </div>
+    <!-- DESSERTS block -->
+    <div class="category-block" id="cat-desserts">
+      <h3>🍰 Desserts</h3>
+      <div class="item" data-name="Ice Cream" data-price="90">Ice Cream - ₹90</div>
+      <div class="item" data-name="Gulab Jamun" data-price="70">Gulab Jamun - ₹70</div>
+      <div class="item" data-name="Brownie" data-price="110">Brownie - ₹110</div>
+    </div>
 
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button id="clearBtn" class="btn ghost">Clear</button>
-          <button id="newBtn" class="btn">New Bill</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3 style="margin:0 0 8px 0">Receipt Preview</h3>
-        <div id="receipt" class="receipt">No items yet.</div>
-      </div>
-    </aside>
-
-    <footer>Tip: edit the MENU array in the script to add your dishes. Then push to GitHub and enable Pages to host.</footer>
+    <br />
+    <h3>➕ Add New Item</h3>
+    <input id="newItemName" type="text" placeholder="Item Name" aria-label="New item name">
+    <input id="newItemPrice" type="number" placeholder="Price (numbers only)" aria-label="New item price">
+    <select id="newItemCategory" aria-label="Category">
+      <option value="starters">Starters</option>
+      <option value="main">Main Course</option>
+      <option value="desserts">Desserts</option>
+    </select>
+    <button class="generate" id="addItemBtn" type="button">Add Item</button>
+    <div class="small-note">Choose category to add item into that section. New items become clickable to add to cart.</div>
   </div>
 
-  <script>
-    // Simple menu data - edit or replace with your own
-    const MENU = [
-      {id:'dosa', name:'Masala Dosa', price:80, category:'South'},
-      {id:'idli', name:'Idli (2 pcs)', price:40, category:'South'},
-      {id:'vada', name:'Medu Vada', price:45, category:'South'},
-      {id:'paneer', name:'Paneer Butter Masala', price:160, category:'North'},
-      {id:'naan', name:'Butter Naan', price:35, category:'North'},
-      {id:'chicken', name:'Chicken Biryani', price:180, category:'Biryani'},
-      {id:'veg_biry', name:'Veg Biryani', price:140, category:'Biryani'},
-      {id:'cold_coffee', name:'Cold Coffee', price:70, category:'Drinks'},
-      {id:'masala_tea', name:'Masala Chai', price:25, category:'Drinks'},
-      {id:'gulab', name:'Gulab Jamun (2 pcs)', price:50, category:'Dessert'},
-    ];
+  <!-- ---------------- Cart area ---------------- -->
+  <div class="cart">
+    <h2>🛒 Cart</h2>
+    <table id="cartTable" aria-label="Cart table">
+      <thead>
+        <tr><th>Item</th><th>Qty</th><th>Price</th><th>Total</th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
 
-    // App state
-    let cart = {}; // id -> {item, qty}
+    <div class="total" id="totalAmount">Subtotal: ₹0<br>Tax (5%): ₹0<br><strong>Grand Total: ₹0</strong></div>
+    <button class="generate" onclick="generateReceipt()" type="button">Generate Bill</button>
+  </div>
 
-    // Elements
-    const menuGrid = document.getElementById('menuGrid');
-    const cartBody = document.getElementById('cartBody');
-    const subtotalEl = document.getElementById('subtotal');
-    const taxEl = document.getElementById('tax');
-    const taxAmountEl = document.getElementById('taxAmount');
-    const discountEl = document.getElementById('discount');
-    const discountAmountEl = document.getElementById('discountAmount');
-    const grandTotalEl = document.getElementById('grandTotal');
-    const receiptEl = document.getElementById('receipt');
-    const searchInput = document.getElementById('search');
-    const categoryFilter = document.getElementById('categoryFilter');
+  <!-- ---------------- Receipt area ---------------- -->
+  <div class="receipt">
+    <h3>🧾 Receipt Preview</h3>
+    <div style="font-size:13px;color:#ccc;margin-bottom:10px;">
+      <strong>Customer Email:</strong> {{ email|safe }}<br>
+      <strong>Mobile:</strong> {{ mobile|safe }}
+    </div>
 
-    // Populate categories
-    const categories = ['all', ...Array.from(new Set(MENU.map(m=>m.category)))];
-    categories.forEach(c=>{
-      const opt = document.createElement('option'); opt.value=c; opt.textContent = c.charAt(0).toUpperCase()+c.slice(1);
-      categoryFilter.appendChild(opt);
-    });
+    <div class="receipt-box" id="receiptBox">No items yet...</div>
+    <button class="generate" onclick="printReceipt()" type="button">🖨️ Print Receipt</button>
+  </div>
 
-    function renderMenu() {
-      menuGrid.innerHTML = '';
-      const q = searchInput.value.trim().toLowerCase();
-      const cat = categoryFilter.value;
-      MENU.filter(m=> (cat==='all'||m.category===cat) && (m.name.toLowerCase().includes(q)||m.category.toLowerCase().includes(q))).forEach(item=>{
-        const div = document.createElement('div'); div.className='menu-item';
-        div.innerHTML = `<div class="title">${item.name}</div><div class="meta"><div>₹${item.price.toFixed(2)}</div><div><button data-id="${item.id}">Add</button></div></div>`;
-        menuGrid.appendChild(div);
-      });
-      // attach handlers
-      menuGrid.querySelectorAll('button').forEach(b=>b.addEventListener('click', e=>{
-        const id = e.currentTarget.dataset.id; addToCart(id);
-      }));
+</div>
+
+<script>
+/*
+  Final working script:
+  - categories: Starters, Main Course, Desserts
+  - add new item into selected category
+  - menu items (existing + added) clickable to add to cart
+  - cart rows have - and + buttons
+  - max per-item qty = 20
+  - when trying to increase above 20: + buttons shake red and all qty buttons disabled for 1s
+  - script placed at end so DOM is ready
+*/
+
+const MAX_QTY = 20;
+let cart = [];          // {name, price, qty}
+let alertLock = false;  // temporary lock while alert plays
+
+/* ---------- Utility: locate category container by value ---------- */
+function getCategoryContainer(value) {
+  switch (value) {
+    case 'starters': return document.getElementById('cat-starters');
+    case 'main': return document.getElementById('cat-main');
+    case 'desserts': return document.getElementById('cat-desserts');
+    default: return document.getElementById('cat-starters');
+  }
+}
+
+/* ---------- Initialize existing menu item clicks ---------- */
+function initMenuClicks() {
+  // attach to all .item inside sidebar
+  const items = document.querySelectorAll('.sidebar .item');
+  items.forEach(el => {
+    // ensure no duplicate listeners
+    el.removeEventListener('click', itemClickHandler);
+    el.addEventListener('click', itemClickHandler);
+  });
+}
+
+function itemClickHandler(e) {
+  // get name & price from data attributes (preferred) or from text
+  const el = e.currentTarget;
+  const name = el.getAttribute('data-name') || el.textContent.split(' - ')[0].trim();
+  const price = parseFloat(el.getAttribute('data-price') || ('' + el.textContent).replace(/.*₹/,'').trim());
+  addToCart(name, price);
+}
+
+/* ---------- Add new menu item into chosen category ---------- */
+function addNewMenuItem() {
+  const nameInput = document.getElementById('newItemName');
+  const priceInput = document.getElementById('newItemPrice');
+  const catSelect = document.getElementById('newItemCategory');
+
+  const name = nameInput.value.trim();
+  const price = parseFloat(priceInput.value);
+  const category = catSelect.value;
+
+  if(!name || Number.isNaN(price) || price < 0) {
+    alert('Enter valid item name and non-negative price.');
+    return;
+  }
+
+  // create element (same markup & class as original)
+  const div = document.createElement('div');
+  div.className = 'item';
+  div.setAttribute('data-name', name);
+  div.setAttribute('data-price', String(price));
+  div.textContent = `${name} - ₹${price}`;
+
+  // bind click to add to cart
+  div.addEventListener('click', itemClickHandler);
+
+  // append to correct category container
+  const container = getCategoryContainer(category);
+  // insert before the "Add New Item" form area; append is fine because blocks are grouped
+  container.appendChild(div);
+
+  // clear inputs
+  nameInput.value = '';
+  priceInput.value = '';
+
+  // re-init menu clicks (not strictly necessary since we bound directly)
+  initMenuClicks();
+}
+
+/* ---------- Add item to cart ---------- */
+function addToCart(name, price) {
+  if (alertLock) return;
+
+  const existing = cart.find(it => it.name === name);
+  if (existing) {
+    if (existing.qty >= MAX_QTY) {
+      triggerMaxLimitAlert();
+      return;
     }
+    existing.qty += 1;
+  } else {
+    cart.push({ name, price, qty: 1 });
+  }
+  updateCartUI();
+}
 
-    function addToCart(id, qty=1){
-      const item = MENU.find(m=>m.id===id); if(!item) return;
-      if(cart[id]) cart[id].qty += qty; else cart[id]={item:structuredClone(item), qty};
-      saveState(); renderCart();
+/* ---------- Change quantity at index ---------- */
+function changeQtyAtIndex(index, delta) {
+  if (alertLock) return;
+  if (index < 0 || index >= cart.length) return;
+
+  const item = cart[index];
+
+  if (delta === 1 && item.qty >= MAX_QTY) {
+    triggerMaxLimitAlert(index);
+    return;
+  }
+
+  item.qty += delta;
+  if (item.qty <= 0) {
+    cart.splice(index, 1);
+  }
+  updateCartUI();
+}
+
+/* ---------- Trigger max-limit alert:
+   shake only plus buttons, disable all qty buttons temporarily ---------- */
+function triggerMaxLimitAlert() {
+  const plusButtons = Array.from(document.querySelectorAll('.qty-btn[data-dir="plus"]'));
+  const allButtons = Array.from(document.querySelectorAll('.qty-btn'));
+
+  plusButtons.forEach(btn => btn.classList.add('shake'));
+  allButtons.forEach(btn => btn.disabled = true);
+
+  alertLock = true;
+
+  setTimeout(() => {
+    plusButtons.forEach(btn => btn.classList.remove('shake'));
+    allButtons.forEach(btn => btn.disabled = false);
+    alertLock = false;
+    // ensure plus buttons that should be disabled (at max) remain disabled
+    enforcePlusDisabledState();
+  }, 900);
+}
+
+/* ---------- Ensure plus buttons disabled for items at MAX_QTY ---------- */
+function enforcePlusDisabledState() {
+  // walk through cart table rows and set plus disabled where needed
+  const plusButtons = document.querySelectorAll('.qty-btn[data-dir="plus"]');
+  plusButtons.forEach((btn, idx) => {
+    const item = cart[idx];
+    if (!item) {
+      btn.disabled = false;
+    } else {
+      btn.disabled = item.qty >= MAX_QTY;
     }
+  });
+}
 
-    function renderCart(){
-      cartBody.innerHTML = '';
-      const rows = Object.values(cart);
-      if(rows.length===0){ cartBody.innerHTML = `<tr><td colspan="4" style="color:var(--muted)">Cart is empty</td></tr>`; updateTotals(); return; }
-      rows.forEach(r=>{
-        const tr = document.createElement('tr');
-        const total = r.item.price * r.qty;
-        tr.innerHTML = `<td>${r.item.name}</td>
-                        <td><div class="qty"><button class="qty-dec" data-id="${r.item.id}">-</button><div style="min-width:28px;text-align:center">${r.qty}</div><button class="qty-inc" data-id="${r.item.id}">+</button></div></td>
-                        <td>₹${r.item.price.toFixed(2)}</td>
-                        <td>₹${total.toFixed(2)} <button style="margin-left:8px" class="btn ghost remove" data-id="${r.item.id}">Remove</button></td>`;
-        cartBody.appendChild(tr);
-      });
-      // attach events
-      cartBody.querySelectorAll('.qty-inc').forEach(b=>b.addEventListener('click', e=>{ const id=e.currentTarget.dataset.id; cart[id].qty++; saveState(); renderCart(); }));
-      cartBody.querySelectorAll('.qty-dec').forEach(b=>b.addEventListener('click', e=>{ const id=e.currentTarget.dataset.id; cart[id].qty--; if(cart[id].qty<=0) delete cart[id]; saveState(); renderCart(); }));
-      cartBody.querySelectorAll('.remove').forEach(b=>b.addEventListener('click', e=>{ const id=e.currentTarget.dataset.id; delete cart[id]; saveState(); renderCart(); }));
+/* ---------- Update cart UI (table + totals) ---------- */
+function updateCartUI() {
+  const tbody = document.querySelector('#cartTable tbody');
+  tbody.innerHTML = '';
 
-      updateTotals();
-    }
+  let subtotal = 0;
 
-    function updateTotals(){
-      const rows = Object.values(cart);
-      const subtotal = rows.reduce((s,r)=>s + r.item.price * r.qty, 0);
-      const discountPercent = parseFloat(discountEl.value) || 0;
-      const discountAmt = subtotal * (discountPercent/100);
-      const taxPercent = parseFloat(taxEl.value) || 0;
-      const taxAmt = (subtotal - discountAmt) * (taxPercent/100);
-      const grand = subtotal - discountAmt + taxAmt;
-      subtotalEl.textContent = `₹${subtotal.toFixed(2)}`;
-      discountAmountEl.textContent = `-₹${discountAmt.toFixed(2)}`;
-      taxAmountEl.textContent = `₹${taxAmt.toFixed(2)}`;
-      grandTotalEl.textContent = `₹${grand.toFixed(2)}`;
-      renderReceipt({subtotal, discountAmt, taxAmt, grand});
-    }
+  cart.forEach((item, idx) => {
+    const row = document.createElement('tr');
 
-    function renderReceipt({subtotal=0, discountAmt=0, taxAmt=0, grand=0}={}){
-      const date = new Date();
-      let s = '';
-      s += `My Restaurant\n`;
-      s += `Date: ${date.toLocaleString()}\n`;
-      s += `--------------------------------\n`;
-      Object.values(cart).forEach(r=>{
-        s += `${r.item.name.padEnd(22)} x${String(r.qty).padEnd(3)} ₹${(r.item.price*r.qty).toFixed(2)}\n`;
-      });
-      s += `--------------------------------\n`;
-      s += `Subtotal: ₹${subtotal.toFixed(2)}\n`;
-      s += `Discount: -₹${discountAmt.toFixed(2)}\n`;
-      s += `Tax: ₹${taxAmt.toFixed(2)}\n`;
-      s += `TOTAL: ₹${grand.toFixed(2)}\n`;
-      s += `\nThank you! Visit again.`;
-      receiptEl.textContent = s;
-    }
+    // name cell
+    const nameCell = document.createElement('td');
+    nameCell.textContent = item.name;
+    row.appendChild(nameCell);
 
-    // Save/load local state
-    function saveState(){
-      const store = {cart, tax:taxEl.value, discount:discountEl.value};
-      localStorage.setItem('rbill_state', JSON.stringify(store));
-    }
-    function loadState(){
-      try{ const store = JSON.parse(localStorage.getItem('rbill_state')||'null'); if(store){ cart = store.cart || {}; taxEl.value = store.tax || taxEl.value; discountEl.value = store.discount || discountEl.value; } }catch(e){console.warn(e)}
-    }
+    // qty cell with - and + buttons
+    const qtyCell = document.createElement('td');
 
-    // Buttons
-    document.getElementById('clearBtn').addEventListener('click', ()=>{ cart={}; saveState(); renderCart(); });
-    document.getElementById('newBtn').addEventListener('click', ()=>{ if(confirm('Start a new bill? This will clear the cart.')){ cart={}; saveState(); renderCart(); } });
-    document.getElementById('printBtn').addEventListener('click', ()=>{ window.print(); });
-    document.getElementById('saveBtn').addEventListener('click', ()=>{ const bills = JSON.parse(localStorage.getItem('rbill_history')||'[]'); bills.push({id:Date.now(), date:new Date().toISOString(), cart, totals:{subtotal:parseFloat(subtotalEl.textContent.replace(/[₹,]/g,'')), total:parseFloat(grandTotalEl.textContent.replace(/[₹,]/g,''))}}); localStorage.setItem('rbill_history', JSON.stringify(bills)); alert('Bill saved to local history'); });
-    document.getElementById('exportBtn').addEventListener('click', ()=>{
-      const payload = {date:new Date().toISOString(), cart, tax:taxEl.value, discount:discountEl.value};
-      const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = `bill_${Date.now()}.json`; a.click(); URL.revokeObjectURL(url);
-    });
+    const minusBtn = document.createElement('button');
+    minusBtn.className = 'qty-btn';
+    minusBtn.type = 'button';
+    minusBtn.setAttribute('data-dir', 'minus');
+    minusBtn.textContent = '-';
+    minusBtn.addEventListener('click', () => changeQtyAtIndex(idx, -1));
 
-    // Search + filter
-    searchInput.addEventListener('input', renderMenu);
-    categoryFilter.addEventListener('change', renderMenu);
+    const qtyText = document.createTextNode(` ${item.qty} `);
 
-    // react to tax/discount
-    taxEl.addEventListener('input', updateTotals);
-    discountEl.addEventListener('input', updateTotals);
+    const plusBtn = document.createElement('button');
+    plusBtn.className = 'qty-btn';
+    plusBtn.type = 'button';
+    plusBtn.setAttribute('data-dir', 'plus');
+    plusBtn.textContent = '+';
+    plusBtn.addEventListener('click', () => changeQtyAtIndex(idx, 1));
 
-    // initial load
-    loadState(); renderMenu(); renderCart();
+    // disable plus if at max
+    plusBtn.disabled = item.qty >= MAX_QTY;
 
-    // Utility for deep clone in older browsers
-    function structuredClone(obj){ return JSON.parse(JSON.stringify(obj)); }
-  </script>
+    qtyCell.appendChild(minusBtn);
+    qtyCell.appendChild(qtyText);
+    qtyCell.appendChild(plusBtn);
+
+    row.appendChild(qtyCell);
+
+    // price cell
+    const priceCell = document.createElement('td');
+    priceCell.textContent = `₹${item.price}`;
+    row.appendChild(priceCell);
+
+    // total cell
+    const totalCell = document.createElement('td');
+    const total = item.price * item.qty;
+    totalCell.textContent = `₹${total}`;
+    row.appendChild(totalCell);
+
+    tbody.appendChild(row);
+
+    subtotal += total;
+  });
+
+  const tax = subtotal * 0.05;
+  const grandTotal = subtotal + tax;
+  document.getElementById('totalAmount').innerHTML =
+    `Subtotal: ₹${subtotal.toFixed(2)}<br>Tax (5%): ₹${tax.toFixed(2)}<br><strong>Grand Total: ₹${grandTotal.toFixed(2)}</strong>`;
+
+  // ensure plus buttons state is enforced
+  enforcePlusDisabledState();
+}
+
+/* ---------- Generate receipt ---------- */
+function generateReceipt() {
+  if (cart.length === 0) {
+    document.getElementById('receiptBox').innerHTML = 'No items in cart.';
+    return;
+  }
+
+  let subtotal = 0;
+  let html = "<div style='text-align:center;font-weight:bold;color:#00aaff;'>RESTAURANT BILL</div><hr>";
+
+  cart.forEach(item => {
+    const sub = item.price * item.qty;
+    subtotal += sub;
+    html += `<div style='display:flex;justify-content:space-between;margin:6px 0;'><span>${item.name} x ${item.qty}</span><span>₹${sub}</span></div>`;
+  });
+
+  const tax = subtotal * 0.05;
+  const total = subtotal + tax;
+
+  html += `<hr>
+    <div style='display:flex;justify-content:space-between;'><span>Subtotal</span><span>₹${subtotal.toFixed(2)}</span></div>
+    <div style='display:flex;justify-content:space-between;'><span>Tax (5%)</span><span>₹${tax.toFixed(2)}</span></div>
+    <div style='display:flex;justify-content:space-between;font-weight:bold;color:#00aaff;margin-top:8px;'><span>Total</span><span>₹${total.toFixed(2)}</span></div>
+    <div style='text-align:center;color:#999;margin-top:12px;'>✨ Thank you! Visit again ✨</div>`;
+
+  document.getElementById('receiptBox').innerHTML = html;
+}
+
+/* ---------- Print receipt ---------- */
+function printReceipt() {
+  const printContent = document.getElementById('receiptBox').innerHTML;
+  const staffInfo = `<h3>Restaurant Billing System</h3>
+        <p><strong>Email:</strong> {{ email|safe }}<br><strong>Mobile:</strong> {{ mobile|safe }}</p><hr>`;
+
+  const newWin = window.open('', '_blank');
+  newWin.document.write("<html><head><title>Receipt</title></head><body>" + staffInfo + printContent + "</body></html>");
+  newWin.document.close();
+  setTimeout(() => { newWin.print(); newWin.close(); }, 300);
+}
+
+/* ---------- Initialization ---------- */
+function initApp() {
+  // Bind existing menu items
+  initMenuClicks();
+
+  // Bind add item button
+  const addBtn = document.getElementById('addItemBtn');
+  addBtn.addEventListener('click', addNewMenuItem);
+
+  // initial cart UI
+  updateCartUI();
+}
+
+// start
+initApp();
+</script>
 </body>
 </html>
